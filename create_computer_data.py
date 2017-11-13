@@ -3,27 +3,23 @@ import random
 import time
 import os
 import datetime
+from pymongo import MongoClient
 
-# TODO: 가장 마지막에 두어진 수 빨간색으로 표시
+client = MongoClient()
 
 # import os
 # os.chdir('E:\\Documents\\OneDrive\\UT\\CSC180\\project2\\stringmethod')
 
-
-
-if not os.path.exists("./game-log"):
-    os.makedirs("./game-log")
+if not os.path.exists("./computer-game-log"):
+    os.makedirs("./computer-game-log")
 
 if not os.path.exists("./game-error"):
     os.makedirs("./game-error")
 
-datestr = str(datetime.datetime.now())
-fname = ''.join([c for c in datestr if c in "0123456789"]) + ".txt"
 BOARD_SIZE = 19
+current_run = 0
 
 global move_history
-com_color = 'w'
-
 
 def make_empty_board():
     board = []
@@ -52,7 +48,8 @@ def is_win(board):
     elif 5 in white and white[5] == 1:
         return 'White won'
 
-    if sum(black.values()) == black[-1] and sum(white.values()) == white[-1] or possible_moves(board) == []:
+    if sum(black.values()) == black[-1] and sum(white.values()) == white[-1]\
+            or (possible_moves(board, 'b') == [] or possible_moves(board, 'w') == []):
         return 'Draw'
 
     return 'Continue playing'
@@ -236,7 +233,7 @@ def is_golden(board, move, color):
     return False
 
 
-def possible_moves(board):
+def possible_moves(board, player):
     '''
     return a list of possible coordinates at the boundary of existing stones off-set by 3 units
     '''
@@ -246,7 +243,7 @@ def possible_moves(board):
     cord = {}
     for yi in range(BOARD_SIZE):
         for xi in range(BOARD_SIZE):
-            if board[yi][xi] != ' ' or is_golden(board, (yi, xi), com_color):
+            if board[yi][xi] != ' ' or is_golden(board, (yi, xi), player):
                 taken.append((yi, xi))
 
     for direction in directions:
@@ -305,7 +302,8 @@ def stupid_score(board, col, anticol, y, x):
     sum_sumcol_values(sumanticol)
     dis += - sumanticol[-1] + sumanticol[1] + 4 * sumanticol[2] + 8 * sumanticol[3] + 16 * sumanticol[4]
 
-    res = adv + dis
+    p = random.randint(4, 6)
+    res = p * adv + (10 - p) * dis
 
     # remove_stone(x,y)
     board[y][x] = ' '
@@ -345,9 +343,9 @@ def best_move(board, col):
     maxscorecol = ''
 
     if is_empty(board):
-        movecol = (int((len(board)) * random.random()), int((len(board[0])) * random.random()))
+        movecol = [(int((len(board)) * random.random()), int((len(board[0])) * random.random()))]
     else:
-        moves = possible_moves(board)
+        moves = possible_moves(board, col)
 
         for move in moves:
             y, x = move
@@ -365,48 +363,29 @@ def best_move(board, col):
 
     return movecol[random.randint(0, len(movecol)-1)]
 
-def save_move_history(game_res):
+def save_move_history(fname, game_res):
     with open("./game-log/" + fname, 'w') as f:
         content = [str(x) + ',' + str(y) for (x, y) in move_history]
         f.write('\n'.join(content))
     print("move history is saved to ./game-log/" + fname)
+
 ##Graphics Engine
 
 def click(x, y):
     global board, colors, win, move_history
 
-    x, y = getindexposition(x, y)
-
-    """
-    if x == -1 and y == -1 and len(move_history) != 0:
-        x, y = move_history[-1]
-        remove_stone(x, y)
-        del (move_history[-1])
-        board[y][x] = " "
-        x, y = move_history[-1]
-        remove_stone(x, y)
-        del (move_history[-1])
-        board[y][x] = " "
-        return
-    """
     cx = (len(board)-1)//2
     if x == -1 and y == -1:
         com_color = 'b'
         board[cx][cx] = 'b'
-        draw_stone(cx, cx, colors['b'])
         tmp = colors['b']
         colors['b'] = colors['w']
         colors['w'] = tmp
-
-    if x == 10 and y == -1:
-        initialize(10)
 
     if not is_in(board, y, x):
         return
 
     if board[y][x] == ' ' and not win:
-
-        draw_stone(x, y, colors['b'])
         board[y][x] = 'b'
 
         move_history.append((x, y))
@@ -421,7 +400,6 @@ def click(x, y):
             # screen.bye()
 
         ay, ax = best_move(board, 'w')
-        draw_stone(ax, ay, colors['w'])
         board[ay][ax] = 'w'
 
         move_history.append((ax, ay))
@@ -435,142 +413,33 @@ def click(x, y):
 
             # screen.bye()
 
-
 def initialize():
-    global win, board, screen, colors, move_history  # ,border
+    global win, board, screen, colors, move_history, current_run # ,border
+    current_run += 1
 
-    print("Init")
+    datestr = str(datetime.datetime.now())
+    fname = ''.join([c for c in datestr if c in "0123456789"]) + ".txt"
+    print("Run " + str(current_run) + ": " + fname)
     move_history = []
     win = False
     board = make_empty_board()
 
-    screen = turtle.Screen()
-    screen.onclick(click)
-    screen.setup(screen.screensize()[1] * 2, screen.screensize()[1] * 2)
-    screen.setworldcoordinates(-1, BOARD_SIZE, BOARD_SIZE, -1)
-    screen.bgcolor('orange')
-    screen.tracer(500)
+    current_player = True
+    while True:
+        color = 'b' if current_player else 'w'
+        ay, ax = best_move(board, color)
+        board[ay][ax] = color
 
-    colors = {'w': turtle.Turtle(), 'b': turtle.Turtle(), 'g': turtle.Turtle(), 'd': turtle.Turtle()}
-    colors['w'].color('white')
-    colors['b'].color('black')
-    colors['g'].color('green')
-    colors['d'].color('black')
-    for key in colors:
-        colors[key].ht()
-        colors[key].penup()
-        colors[key].speed(0)
+        move_history.append((ax, ay))
+        game_res = is_win(board)
+        if game_res in ["White won", "Black won", "Draw"]:
+            print(game_res)
+            win = True
+            save_move_history(fname, game_res)
+            break
 
-    border = turtle.Turtle()
-    border.speed(0)
-    border.penup()
-
-    side = (BOARD_SIZE - 1) / 2
-
-    i = -1
-    for start in range(BOARD_SIZE):
-        border.goto(start, side + side * i)  # z-shaped drawing for optimum speed
-        border.pendown()
-        i *= -1
-        border.goto(start, side + side * i)  # (side + side *i) alternates between 0 and size-1
-        border.penup()
-
-    i = 1
-    for start in range(BOARD_SIZE):
-        border.goto(side + side * i, start)
-        border.pendown()
-        i *= -1
-        border.goto(side + side * i, start)
-        border.penup()
-
-    border.pensize(2)
-    border.goto(0,0)
-    border.pendown()
-    border.goto(0, BOARD_SIZE-1)
-    border.goto(BOARD_SIZE - 1, BOARD_SIZE - 1)
-    border.goto(BOARD_SIZE - 1, 0)
-    border.goto(0,0)
-    border.penup()
-    border.ht()
-
-    draw_dot(side, side, colors['d'])
-    if side%3 == 0:
-        ts = side * 2 / 3
-        draw_dot(side - ts, side - ts, colors['d'])
-        draw_dot(side     , side - ts, colors['d'])
-        draw_dot(side + ts, side - ts, colors['d'])
-        draw_dot(side - ts, side     , colors['d'])
-        draw_dot(side + ts, side     , colors['d'])
-        draw_dot(side - ts, side + ts, colors['d'])
-        draw_dot(side     , side + ts, colors['d'])
-        draw_dot(side + ts, side + ts, colors['d'])
-
-    # undo button
-
-    draw_stone(-1, -1, colors['g'])
-    draw_stone(10, -1, colors['g'])
-
-    screen.listen()
-    screen.mainloop()
-
-
-def getindexposition(x, y):
-    '''
-    return the index position of the board in list form
-    '''
-    intx, inty = int(x), int(y)
-    dx, dy = x - intx, y - inty
-    if dx > 0.5:
-        x = intx + 1
-    elif dx < -0.5:
-        x = intx - 1
-    else:
-        x = intx
-    if dy > 0.5:
-        y = inty + 1
-    elif dx < -0.5:
-        y = inty - 1
-    else:
-        y = inty
-    return x, y
-
-
-def remove_stone(x, y):
-    global screen
-
-    eraser = turtle.Turtle()
-    eraser.penup()
-    eraser.speed(0)
-    eraser.ht()
-
-    eraser.color(screen.bgcolor())
-    draw_stone(x, y, eraser)
-    eraser.color('black')
-    eraser.pendown()
-    eraser.goto(x, y + 0.4)
-    eraser.penup()
-    eraser.goto(x - 0.3, y)
-    eraser.pendown()
-    eraser.goto(x + 0.4, y)
-    eraser.penup()
-
-
-def draw_stone(x, y, colturtle):
-    colturtle.goto(x, y - 0.3)
-    colturtle.pendown()
-    colturtle.begin_fill()
-    colturtle.circle(0.3)
-    colturtle.end_fill()
-    colturtle.penup()
-
-def draw_dot(x, y, blackdot):
-    blackdot.goto(x, y - 0.1)
-    blackdot.pendown()
-    blackdot.begin_fill()
-    blackdot.circle(0.1)
-    blackdot.end_fill()
-    blackdot.penup()
-
+        current_player = not current_player
 
 if __name__ == '__main__':
-    initialize()
+    while True:
+        initialize()
